@@ -1,0 +1,6 @@
+# El MM.COM original y los resultados no van en el repositorio
+/original/
+MM.COM
+MM_LFN.COM
+__pycache__/
+*.pyc

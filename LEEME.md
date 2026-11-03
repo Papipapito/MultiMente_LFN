@@ -1,0 +1,64 @@
+# MM_LFN — nombres largos para Multi Mente (MSX)
+
+Parche no oficial que hace que **Multi Mente 2.07_A** (`MM.COM`, de MOGU) enseñe los **nombres largos** (VFAT,
+los que se ven en Windows) en vez de `METALG~1.ROM`. [English version](README.md).
+
+```
+antes:    ALESTE~1.ROM    FRAY2-~5.ROM    GOLVEL~5.ROM    KING'S~9.ROM    METALG~5.ROM
+ahora:    Aleste 1 - E>   Fray 2 - Ver>   Golvellius 3>   King's Valle>   Metal Gear 3>
+```
+
+- **En la lista**, cada hueco enseña los 12 primeros caracteres del nombre largo (un `>` avisa de que sigue).
+- **En File info**, el campo *Name:* enseña el nombre largo entero (hasta 31 caracteres).
+- Los ficheros sin nombre largo salen en 8.3, como siempre.
+
+## Cómo aplicarlo
+
+Hace falta tu propia copia del **MM.COM original de Multi Mente 2.07_A** (23.539 bytes, sha1
+`db7316e2b8f17deb1c34df909e2b8da8133e1601`). **No** va en este repositorio. Elige una de estas:
+
+1. **Página web, sin instalar nada:** abre [`aplicar.html`](aplicar.html) en el navegador y suelta encima tu
+   `MM.COM`. Todo ocurre en tu navegador: el fichero no se sube a ningún sitio.
+2. **Python 3:** `python aplicar.py MM.COM` → escribe `MM_LFN.COM` al lado.
+3. **Cualquier parcheador de IPS** (Floating IPS, Lunar IPS…): aplica [`MM_LFN.ips`](MM_LFN.ips) a `MM.COM`. Los
+   parcheadores de IPS no comprueban el fichero de origen: comprueba antes el sha1 de arriba.
+
+Después copia el resultado a la tarjeta como `MM.COM`, en la carpeta de Multi Mente (junto a `MM.EXE` y
+`MM.CFG`). `aplicar.py` y `aplicar.html` rechazan cualquier fichero que no sea exactamente el original (por
+sha1) y comprueban el sha1 del resultado (`479dade9e4d01e6477d9f07e29a0e7d5aa0e6911`, 25.673 bytes). Si tu
+`MM.COM` lleva las asociaciones de extensiones cambiadas (la tabla del principio del fichero), no es el original:
+usa el original, o aplica el parche con un parcheador de IPS bajo tu responsabilidad.
+
+## Requisitos y límites
+
+- **Nextor 2.1 o 3.0**, FAT16 o FAT12 (Nextor no lee FAT32). Con otro DOS, o si algo falla, se ven los 8.3.
+- **Solo para ver.** Copiar, mover, renombrar y borrar siguen igual, con el 8.3; lo que MM copia o crea no lleva
+  nombre largo. Ordenar ordena por el 8.3.
+- Solo ASCII: las letras latinas acentuadas salen sin acento y lo demás como `?`.
+- Necesita un segmento libre del mapper (un mapper de 256 KB o más) y sitio en la cima del TPA (≥ `D3EBh`;
+  Nextor 2.1.4 deja `D806h` y Nextor 3.0 `D706h`). Si falta uno de los dos, la lista se queda en 8.3 y solo File
+  info enseña el nombre largo.
+- Entrar en una carpeta tarda algo más (unos 0,9 s con 200 ficheros de nombre largo en openMSX); mover el cursor
+  no lee el disco.
+- Probado en openMSX (Philips NMS 8245, 4 MB, Sunrise IDE) con Nextor 2.1.4 y 3.0.0 beta 2. El detalle, con la
+  lista de lo que se probó, está en [docs/TECNICO.md](docs/TECNICO.md).
+
+## Reconstruirlo
+
+El parche es Z80 escrito a mano (`src/mmlfn.asm`) sobre el desensamblado del binario. Con
+[pasmo](http://pasmo.speccy.org/) (o WSL en Windows) y el `MM.COM` original en `original/`:
+
+```
+python tools/hacer_parche.py     # construye MM_LFN.ips, aplicar.py y aplicar.html
+python tests/probar.py           # prueba las tres formas de aplicarlo (node es opcional)
+```
+
+## Sobre Multi Mente y este parche
+
+Multi Mente es obra de MOGU. Este repositorio es un complemento no oficial y no cuenta con el aval del autor.
+**No contiene nada del código de Multi Mente**: `MM_LFN.ips` lleva solo los bytes nuevos (unos 2,4 KB) y las
+herramientas comprueban que cada byte del parche es distinto del original en su sitio. Hay que traer el propio
+`MM.COM`. Si el autor o quien tenga los derechos se opone, que lo diga y se retira.
+
+El código de este repositorio (la fuente del parche y las herramientas) va bajo la GNU GPL v3, ver
+[LICENSE](LICENSE).
