@@ -244,7 +244,7 @@ la raíz del `MMv2.07Aplus-RC5.zip` interior; manual «patched FAT16 & Y2K»). C
      (`3D60h-3DDDh`). Nadie salta a `3D60h` ni a `5CD0h` (ni en MM.COM ni en MM.EXE) y `3D5Dh` sigue siendo un `JP 3E4Ah`
      incondicional: queda sin ejecutarse, como en la 2.07_A. Se comprobó también en ejecución (ver más abajo).
 - **Resultado:** el parche toca los mismos 14 tramos de la 2.07_A (arranque, 7 ganchos, las zonas muertas y la cola). El
-  `MM_LFN_RC5.ips` pesa 2.480 bytes.
+  `MM_LFN_RC5.ips` pesa 2.492 bytes (`MM_LFN.ips`, 2.505).
 
 ### Pruebas con la RC5 (banco `tests/openmsx/probar_mm.py`)
 
