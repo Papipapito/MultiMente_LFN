@@ -1,4 +1,4 @@
-"""hacer_parche.py — de los MM.COM originales a todo lo que se reparte.
+"""hacer_parche.py — de los MM.COM de referencia a todo lo que se reparte.
 
 Uso:  python tools/hacer_parche.py [--solo-207a]
 
@@ -25,6 +25,12 @@ import sys
 import tempfile
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Zona de configuracion del MM.COM: cabecera de ajustes y tabla de programas por extension (desde 'MOGU' hasta
+# justo antes de 'Drive set'). Es lo que cambia CS: aplicar.py/aplicar.html la ponen a cero para reconocer la version,
+# y el parche no escribe nada dentro (se comprueba abajo).
+CFG_LO, CFG_HI = 0x0EE, 0x368
+# Sitio del arreglo de Nextor (wiki de MSX.org: 3A E1 5F CB 4F CA -> C3); todas las bases lo llevan ya puesto.
+ARREGLO = re.compile(rb"\x3a\xe1\x5f\xcb\x4f([\xca\xc3])\x4a\x3e")
 BASES = [
     dict(nombre="2.07_A", sha1="db7316e2b8f17deb1c34df909e2b8da8133e1601", ruta="original/MM.COM", ips="MM_LFN.ips"),
     dict(nombre="2.07A+ RC5", sha1="09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0", ruta="original/MM_RC5.COM",
@@ -34,6 +40,13 @@ BASES = [
 
 def sha1(b):
     return hashlib.sha1(b).hexdigest()
+
+
+def sha1_cfg(b):
+    """sha1 con la zona de configuracion a cero (igual que en aplicar.py y aplicar.html)."""
+    m = bytearray(b)
+    m[CFG_LO:CFG_HI] = bytes(len(m[CFG_LO:CFG_HI]))
+    return sha1(m)
 
 
 def hacer_ips(orig, nuevo):
@@ -87,6 +100,8 @@ def hacer_base(base):
     orig = open(ruta, "rb").read()
     if sha1(orig) != base["sha1"]:
         sys.exit("%s no es el MM.COM %s original (sha1 %s)" % (ruta, base["nombre"], base["sha1"]))
+    sitios = list(ARREGLO.finditer(orig))
+    assert len(sitios) == 1 and orig[sitios[0].start() + 5] == 0xC3, "el original debe llevar el arreglo de Nextor"
     with tempfile.TemporaryDirectory() as tmp:
         nuevo_ruta = os.path.join(tmp, "MM_LFN.COM")
         subprocess.run([sys.executable, os.path.join(RAIZ, "src", "parchear.py"), ruta, nuevo_ruta], check=True)
@@ -97,21 +112,25 @@ def hacer_base(base):
     for off, datos in trozos:
         for k, b in enumerate(datos):
             assert off + k >= len(orig) or orig[off + k] != b
+        # ni en la zona de configuracion (lo que cambia CS se conserva) ni en el sitio del arreglo de Nextor
+        assert off + len(datos) <= CFG_LO or off >= CFG_HI, "el parche pisa la zona de configuracion"
+        assert not off <= sitios[0].start() + 5 < off + len(datos), "el parche pisa el arreglo de Nextor"
     open(os.path.join(RAIZ, base["ips"]), "wb").write(ips)
     print("%s: %s %d bytes en %d trozos (%d bytes nuevos o cambiados de %d)"
           % (base["nombre"], base["ips"], len(ips), len(trozos), sum(len(d) for _, d in trozos), len(nuevo)))
     print("   original  %d bytes sha1 %s" % (len(orig), base["sha1"]))
     print("   parcheado %d bytes sha1 %s" % (len(nuevo), sha1(nuevo)))
-    return dict(nombre=base["nombre"], original=base["sha1"], tam_original=len(orig), parcheado=sha1(nuevo),
-                tam_parcheado=len(nuevo), ips=base64.b64encode(ips).decode())
+    return dict(nombre=base["nombre"], original=base["sha1"], original_cfg=sha1_cfg(orig), tam_original=len(orig),
+                parcheado=sha1(nuevo), parcheado_cfg=sha1_cfg(nuevo), tam_parcheado=len(nuevo),
+                ips=base64.b64encode(ips).decode())
 
 
 def main():
     bases = BASES[:1] if "--solo-207a" in sys.argv else BASES
     hechas = [hacer_base(b) for b in bases]
-    por_sha = {h["original"]: h for h in hechas}
+    por_cfg = {h["original_cfg"]: h for h in hechas}  # se busca por el sha1 sin la zona de configuracion
     lista = "; ".join("%s (%d bytes, sha1 %s)" % (h["nombre"], h["tam_original"], h["original"]) for h in hechas)
-    datos = dict(BASES=json.dumps(por_sha, indent=2), LISTA=lista,
+    datos = dict(BASES=json.dumps(por_cfg, indent=2), LISTA=lista, CFG_LO=str(CFG_LO), CFG_HI=str(CFG_HI),
                  TAM_PARCHEADO=str(hechas[0]["tam_parcheado"]))
     for plant, destino in (("aplicar.plantilla.py", "aplicar.py"), ("aplicar.plantilla.html", "aplicar.html")):
         with open(os.path.join(RAIZ, destino), "w", encoding="utf-8", newline="\n") as f:

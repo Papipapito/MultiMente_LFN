@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MM_LFN — Multi Mente</title>
+<title>MM_LFN — Multi Mente patcher</title>
 <!-- Fichero generado por tools/hacer_parche.py: no lo edites a mano / generated file, do not edit. -->
 <style>
   :root { --fondo:#f6f7f9; --texto:#1c2330; --suave:#5b6577; --caja:#fff; --borde:#c8cfda; --acento:#1d5fd1;
@@ -50,8 +50,11 @@
 </main>
 <script>
 "use strict";
-// sha1 del original -> { nombre, tam_original, parcheado (sha1), tam_parcheado, ips (base64) }
+// sha1 (sin la zona de configuracion) del MM.COM de referencia, con el arreglo de Nextor -> { nombre, original (sha1),
+// tam_original, parcheado (sha1), parcheado_cfg, tam_parcheado, ips (base64) }
 const BASES = __BASES__;
+// zona de configuracion (lo que cambia CS): se pone a cero para reconocer la version
+const CFG_LO = __CFG_LO__, CFG_HI = __CFG_HI__;
 
 // ---- nucleo (sin DOM; lo prueba tests/probar.py con node) ----
 function sha1(bytes) {
@@ -82,8 +85,14 @@ function sha1(bytes) {
   return h.map(x => x.toString(16).padStart(8, "0")).join("");
 }
 
-function ipsBytes(shaOriginal) {
-  const bin = atob(BASES[shaOriginal].ips), out = new Uint8Array(bin.length);
+function sha1Cfg(datos) {
+  const m = datos.slice();
+  m.fill(0, Math.min(CFG_LO, m.length), Math.min(CFG_HI, m.length));
+  return sha1(m);
+}
+
+function ipsBytes(base) {
+  const bin = atob(base.ips), out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
@@ -108,36 +117,84 @@ function aplicarIps(datos, ips) {
   return out;
 }
 
-// { estado: "original" | "parcheado" | "otro", sha, base }
-function comprobar(datos) {
-  const sha = sha1(datos);
-  if (BASES[sha]) return { estado: "original", sha, base: BASES[sha] };
-  const base = Object.values(BASES).find(b => b.parcheado === sha);
-  return base ? { estado: "parcheado", sha, base } : { estado: "otro", sha, base: null };
+// posiciones del byte CA/C3 del arreglo de Nextor: 3A E1 5F CB 4F (CA|C3) 4A 3E
+function buscarArreglo(d) {
+  const pos = [];
+  for (let i = 0; i + 8 <= d.length; i++) {
+    if (d[i] === 0x3A && d[i + 1] === 0xE1 && d[i + 2] === 0x5F && d[i + 3] === 0xCB && d[i + 4] === 0x4F &&
+        (d[i + 5] === 0xCA || d[i + 5] === 0xC3) && d[i + 6] === 0x4A && d[i + 7] === 0x3E) { pos.push(i + 5); i += 7; }
+  }
+  return pos;
+}
+
+function versionDe(d) {
+  const m = /MM v2\.\d\d[A-Za-z_+]{0,3}/.exec(new TextDecoder("latin1").decode(d));
+  return m ? m[0] : null;
+}
+
+// estado: "original" (se le pueden poner los nombres largos) | "parcheado" (ya los lleva) | "otro"
+// arreglo: "ya" | "falta" | null (no se encuentra el sitio, o esta mas de una vez)
+function analizar(datos) {
+  const sitios = buscarArreglo(datos), pos = sitios.length === 1 ? sitios[0] : null;
+  const arreglo = pos === null ? null : (datos[pos] === 0xC3 ? "ya" : "falta");
+  const arreglado = datos.slice();
+  if (arreglo === "falta") arreglado[pos] = 0xC3;
+  const h = sha1Cfg(arreglado);
+  let base = BASES[h] || null, estado = base ? "original" : "otro";
+  if (!base) {
+    base = Object.values(BASES).find(b => b.parcheado_cfg === h) || null;
+    estado = base ? "parcheado" : "otro";
+  }
+  return { estado, base, arreglo, arreglado };
+}
+
+// { salida (Uint8Array | null), nombre, hechos ["nextor", "lfn"], base, estado, arreglo, version }
+function procesar(datos) {
+  const a = analizar(datos);
+  const r = { salida: null, nombre: "MM_LFN.COM", hechos: [], base: a.base, estado: a.estado, arreglo: a.arreglo,
+              version: versionDe(datos) };
+  if (a.estado === "original") {
+    const salida = aplicarIps(a.arreglado, ipsBytes(a.base));
+    if (sha1Cfg(salida) !== a.base.parcheado_cfg || salida.length !== a.base.tam_parcheado ||
+        (sha1(datos) === a.base.original && sha1(salida) !== a.base.parcheado)) throw new Error("internal");
+    r.salida = salida; r.hechos = (a.arreglo === "falta" ? ["nextor"] : []).concat(["lfn"]);
+  } else if (a.arreglo === "falta") {  // ya con nombres largos o version desconocida: solo el arreglo de Nextor
+    r.salida = a.arreglado; r.hechos = ["nextor"];
+    r.nombre = a.estado === "parcheado" ? "MM_LFN.COM" : "MM_NEXTOR.COM";
+  }
+  return r;
 }
 
 // ---- pagina ----
 if (typeof document !== "undefined") {
   const TXT = {
     es: {
-      titulo: "Nombres largos para Multi Mente",
-      sub: "Elige el MM.COM original de Multi Mente (2.07_A o 2.07A+ RC5) y descarga el MM.COM con nombres largos. Todo ocurre en tu navegador: el fichero no se sube a ningún sitio.",
+      titulo: "Parcheador de Multi Mente: nombres largos y Nextor",
+      sub: "Suelta tu MM.COM de Multi Mente y descarga el MM.COM con nombres largos. Si no lleva el arreglo de Nextor, se lo pone. Todo ocurre en tu navegador: el fichero no se sube a ningún sitio.",
       zona: "Suelta aquí tu MM.COM, o pulsa para elegirlo",
-      pie: "Después copia el fichero resultante a la tarjeta como MM.COM, en la carpeta de Multi Mente (junto a MM.EXE y MM.CFG). Necesita Nextor 2.1 o 3.0.",
-      versiones: "Versiones admitidas, sin tocar:",
-      ok: "Hecho", okMsg: "Multi Mente %v: parche aplicado (%n bytes). Pulsa para descargar MM_LFN.COM.", descargar: "Descargar MM_LFN.COM",
-      ya: "Ya está parcheado", yaMsg: "Este MM.COM (Multi Mente %v) ya lleva el parche de nombres largos.",
-      mal: "No es un MM.COM original que conozca", malMsg: "Tu fichero tiene sha1 %s. El parche solo vale para las versiones de abajo, sin tocar: no sirve un MM.COM ya parcheado ni con las asociaciones cambiadas.",
+      pie: "Después copia el fichero resultante a la tarjeta como MM.COM, en la carpeta de Multi Mente (junto a MM.EXE y MM.CFG). Necesita Nextor 2.1 o 3.0. Lo que hayas cambiado con CS se conserva.",
+      versiones: "Versiones admitidas (el MM.COM de referencia; valen también con los ajustes de CS cambiados y con o sin el arreglo de Nextor):",
+      ok: "Hecho", descargar: "Descargar %f",
+      lfn: "Multi Mente %v: nombres largos puestos.", nextor: "Multi Mente %v: arreglo de Nextor y nombres largos puestos.",
+      yaNextor: " Ya llevaba el arreglo de Nextor.",
+      soloNextorLfn: "Multi Mente %v: ya llevaba los nombres largos, pero le faltaba el arreglo de Nextor: puesto.",
+      soloNextor: "Versión %v: no la conozco para los nombres largos, así que solo he puesto el arreglo de Nextor (el de la wiki de MSX.org, sin probar en esta versión).",
+      ya: "Ya está parcheado", yaMsg: "Este MM.COM (Multi Mente %v) ya lleva los nombres largos y el arreglo de Nextor.",
+      mal: "No es un MM.COM que conozca", malMsg: "Tu fichero dice ser %v y tiene sha1 %s. Solo valen las versiones de abajo (tal cual o con los ajustes de CS cambiados); no sirve una versión distinta ni con el código cambiado.",
     },
     en: {
-      titulo: "Long file names for Multi Mente",
-      sub: "Pick the original Multi Mente MM.COM (2.07_A or 2.07A+ RC5) and download the MM.COM with long file names. Everything happens in your browser: the file is not uploaded anywhere.",
+      titulo: "Multi Mente patcher: long file names and Nextor",
+      sub: "Drop your Multi Mente MM.COM and download the MM.COM with long file names. If it lacks the Nextor fix, it is added. Everything happens in your browser: the file is not uploaded anywhere.",
       zona: "Drop your MM.COM here, or click to choose it",
-      pie: "Then copy the result to the card as MM.COM, in the Multi Mente folder (next to MM.EXE and MM.CFG). Needs Nextor 2.1 or 3.0.",
-      versiones: "Supported versions, untouched:",
-      ok: "Done", okMsg: "Multi Mente %v: patch applied (%n bytes). Click to download MM_LFN.COM.", descargar: "Download MM_LFN.COM",
-      ya: "Already patched", yaMsg: "This MM.COM (Multi Mente %v) already has the long-name patch.",
-      mal: "Not an original MM.COM I know", malMsg: "Your file's sha1 is %s. The patch only fits the versions below, untouched: a MM.COM that is already patched or has edited associations will not do.",
+      pie: "Then copy the result to the card as MM.COM, in the Multi Mente folder (next to MM.EXE and MM.CFG). Needs Nextor 2.1 or 3.0. What you changed with CS is kept.",
+      versiones: "Supported versions (the reference MM.COM; they also fit with the CS settings changed, with or without the Nextor fix):",
+      ok: "Done", descargar: "Download %f",
+      lfn: "Multi Mente %v: long file names added.", nextor: "Multi Mente %v: Nextor fix and long file names added.",
+      yaNextor: " It already had the Nextor fix.",
+      soloNextorLfn: "Multi Mente %v: it already had the long file names but lacked the Nextor fix: added.",
+      soloNextor: "Version %v: I do not know it for long file names, so I only added the Nextor fix (the one on the MSX.org wiki, untested on this version).",
+      ya: "Already patched", yaMsg: "This MM.COM (Multi Mente %v) already has the long file names and the Nextor fix.",
+      mal: "Not an MM.COM I know", malMsg: "Your file says it is %v and its sha1 is %s. Only the versions below fit (as they come, or with the CS settings changed); a different version or changed code will not do.",
     },
   };
   const L = TXT[(navigator.language || "en").toLowerCase().startsWith("es") ? "es" : "en"];
@@ -147,9 +204,9 @@ if (typeof document !== "undefined") {
   document.getElementById("t-zona").textContent = L.zona;
   document.getElementById("t-pie").textContent = L.pie;
   document.getElementById("t-versiones").textContent = L.versiones;
-  for (const [sha, b] of Object.entries(BASES)) {
+  for (const b of Object.values(BASES)) {
     const li = document.createElement("li"), c = document.createElement("code");
-    c.textContent = b.nombre + ": " + b.tam_original + " bytes, sha1 " + sha;
+    c.textContent = b.nombre + ": " + b.tam_original + " bytes, sha1 " + b.original;
     li.append(c);
     document.getElementById("lista-versiones").append(li);
   }
@@ -163,31 +220,38 @@ if (typeof document !== "undefined") {
     if (boton) res.append(document.createElement("br"), boton);
   }
 
-  async function procesar(archivo) {
+  async function procesarFichero(archivo) {
     const datos = new Uint8Array(await archivo.arrayBuffer());
-    const c = comprobar(datos);
-    if (c.estado === "parcheado") return mostrar("ok", L.ya, L.yaMsg.replace("%v", c.base.nombre));
-    if (c.estado === "otro") return mostrar("mal", L.mal, L.malMsg.replace("%s", c.sha));
-    const nuevo = aplicarIps(datos, ipsBytes(c.sha));
-    if (sha1(nuevo) !== c.base.parcheado) return mostrar("mal", L.mal, "Internal error / Error interno");
+    let r;
+    try { r = procesar(datos); } catch (e) { return mostrar("mal", L.mal, "Internal error / Error interno"); }
+    const nombreVer = r.base ? r.base.nombre : (r.version || "?");
+    if (!r.salida) {
+      if (r.estado === "parcheado") return mostrar("ok", L.ya, L.yaMsg.replace("%v", nombreVer));
+      return mostrar("mal", L.mal, L.malMsg.replace("%v", r.version || "?").replace("%s", sha1(datos)));
+    }
+    const lfn = r.hechos.includes("lfn"), nex = r.hechos.includes("nextor");
+    let texto;
+    if (lfn) texto = (nex ? L.nextor : L.lfn).replace("%v", nombreVer) + (!nex && r.arreglo === "ya" ? L.yaNextor : "");
+    else texto = (r.estado === "parcheado" ? L.soloNextorLfn : L.soloNextor).replace("%v", nombreVer);
+    const salida = r.salida, nombre = r.nombre;
     const boton = document.createElement("button");
-    boton.textContent = L.descargar;
+    boton.textContent = L.descargar.replace("%f", nombre);
     boton.onclick = () => {
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([nuevo], { type: "application/octet-stream" }));
-      a.download = "MM_LFN.COM";
+      a.href = URL.createObjectURL(new Blob([salida], { type: "application/octet-stream" }));
+      a.download = nombre;
       document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     };
-    mostrar("ok", L.ok, L.okMsg.replace("%v", c.base.nombre).replace("%n", nuevo.length), boton);
+    mostrar("ok", L.ok, texto + " (" + salida.length + " bytes)", boton);
   }
 
-  fich.addEventListener("change", () => fich.files[0] && procesar(fich.files[0]));
+  fich.addEventListener("change", () => fich.files[0] && procesarFichero(fich.files[0]));
   zona.addEventListener("dragover", e => { e.preventDefault(); zona.classList.add("encima"); });
   zona.addEventListener("dragleave", () => zona.classList.remove("encima"));
   zona.addEventListener("drop", e => {
     e.preventDefault(); zona.classList.remove("encima");
-    if (e.dataTransfer.files[0]) procesar(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files[0]) procesarFichero(e.dataTransfer.files[0]);
   });
 }
 </script>

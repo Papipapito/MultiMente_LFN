@@ -1,8 +1,9 @@
 # MM_LFN — nombres largos para Multi Mente (MSX)
 
-Parche no oficial que hace que **Multi Mente** (`MM.COM`, de MOGU) enseñe los **nombres largos** (VFAT, los que
-se ven en Windows) en vez de `METALG~1.ROM`. Vale para dos versiones: la original **2.07_A** y la de la comunidad
-**2.07A+ RC5** (con arreglos de FAT16 y del año 2000). [English version](README.md).
+Parcheador no oficial para **Multi Mente** (`MM.COM`, de MOGU). Hace que Multi Mente enseñe los **nombres largos**
+(VFAT, los que se ven en Windows) en vez de `METALG~1.ROM` y, si tu `MM.COM` no lo lleva, le pone el **arreglo de
+Nextor**. Vale para dos versiones: la **2.07_A** y la de la comunidad **2.07A+ RC5** (con arreglos de FAT16 y del año
+2000). [English version](README.md).
 
 ```
 antes:    ALESTE~1.ROM    FRAY2-~5.ROM    GOLVEL~5.ROM    KING'S~9.ROM    METALG~5.ROM
@@ -15,7 +16,8 @@ ahora:    Aleste 1 - E>   Fray 2 - Ver>   Golvellius 3>   King's Valle>   Metal 
 
 ## Cómo aplicarlo
 
-Hace falta tu propia copia del `MM.COM` original de una de estas versiones. **No** van en este repositorio:
+Hace falta tu propia copia del `MM.COM`. **No** va en este repositorio. Estas son las versiones que reconoce (la
+versión de referencia de cada una):
 
 | Versión | `MM.COM` | sha1 | Resultado |
 | --- | --- | --- | --- |
@@ -24,7 +26,19 @@ Hace falta tu propia copia del `MM.COM` original de una de estas versiones. **No
 
 La RC5 es la «MultiMente v2.07A+ RC5» de las descargas de MSX Resource Center. En su zip, el `MM.COM` en inglés es el
 de la raíz del `MMv2.07Aplus-RC5.zip` interior (no el de `Japanese\`). Usa el `MM.EXE` que viene con tu `MM.COM`; el
-parche no lo toca.
+parcheador no lo toca.
+
+El parcheador pone solo lo que falta:
+
+- **Los nombres largos**, siempre.
+- **El arreglo de Nextor**, si tu `MM.COM` no lo lleva. Es el cambio de un byte que describe la
+  [wiki de MSX.org](https://msx.org/wiki/MultiMente) (`3A E1 5F CB 4F CA` → `C3`; evita el «Not MSX-DOS Disk» con
+  Nextor). Las dos versiones de referencia de arriba ya lo llevan, y el parche de nombres largos lo necesita:
+  reutiliza código que ese arreglo deja sin uso.
+- **Lo que hayas cambiado con CS** (la tabla de programas por extensión, etc.) se conserva: la versión se reconoce
+  sin mirar esa zona y el parche no escribe nada dentro.
+- Cualquier otro `MM.COM` al que le falte el arreglo de Nextor recibe **solo el arreglo**, guardado como
+  `MM_NEXTOR.COM` (el arreglo es el de la wiki; no lo hemos probado en esas versiones). Todo lo demás se rechaza.
 
 Elige una de estas:
 
@@ -33,14 +47,12 @@ Elige una de estas:
    navegador: el fichero no se sube a ningún sitio.
 2. **Python 3:** `python aplicar.py MM.COM` → escribe `MM_LFN.COM` al lado.
 3. **Cualquier parcheador de IPS** (Floating IPS, Lunar IPS…): aplica [`MM_LFN.ips`](MM_LFN.ips) (2.07_A) o
-   [`MM_LFN_RC5.ips`](MM_LFN_RC5.ips) (RC5) a `MM.COM`. Los parcheadores de IPS no comprueban el fichero de origen:
-   comprueba antes el sha1 de arriba.
+   [`MM_LFN_RC5.ips`](MM_LFN_RC5.ips) (RC5) a `MM.COM`. Los parcheadores de IPS no comprueban el fichero de origen y
+   el `.ips` no pone el arreglo de Nextor: comprueba antes que tu fichero es una de las dos versiones de arriba
+   (el sha1, o al menos el tamaño) y que lleva el arreglo; si no, usa la página web o `aplicar.py`.
 
 Después copia el resultado a la tarjeta como `MM.COM`, en la carpeta de Multi Mente (junto a `MM.EXE` y `MM.CFG`).
-`aplicar.py` y `aplicar.html` reconocen la versión por el sha1, rechazan cualquier fichero que no sea exactamente un
-original y comprueban el sha1 del resultado. Si tu `MM.COM` lleva las asociaciones de extensiones cambiadas (la
-tabla del principio del fichero), no es el original: usa el original, o aplica el parche con un parcheador de IPS bajo
-tu responsabilidad.
+`aplicar.py` y `aplicar.html` comprueban el resultado antes de dártelo.
 
 ## Requisitos y límites
 

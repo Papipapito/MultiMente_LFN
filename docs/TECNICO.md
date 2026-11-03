@@ -10,10 +10,45 @@ el `MM_LFN.ips` y los aplicadores.
 
 Vale para dos bases (`src/parchear.py` elige por el sha1; ver «La variante RC5» más abajo):
 
-| Base | Original | Parcheado |
+| Base | Original (de referencia) | Parcheado |
 | --- | --- | --- |
 | 2.07_A | 23.539 bytes, sha1 `db7316e2b8f17deb1c34df909e2b8da8133e1601` | 25.673 bytes, sha1 `479dade9e4d01e6477d9f07e29a0e7d5aa0e6911` |
 | 2.07A+ RC5 | 23.552 bytes, sha1 `09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0` | 25.673 bytes, sha1 `5b97f818fc2496069c4aeef4e9cfcf2688dfe2bd` |
+
+## El arreglo de Nextor y cómo se reconoce la versión
+
+**El arreglo.** La [wiki de Multi Mente en MSX.org](https://msx.org/wiki/MultiMente) dice que con Nextor sale «Not
+MSX-DOS Disk» y que se corrige buscando `3A E1 5F CB 4F CA` en `MM.COM` y cambiando el `CA` por `C3`. Es
+`LD A,(5FE1h) / BIT 1,A / JP Z,3E4Ah`: sin arreglo, MM usa su propio lector de sectores (`3D60h-3DDDh`, solo FAT12)
+cuando el bit está a 1, y con Nextor falla; con `JP 3E4Ah` incondicional usa siempre el lector por la API de DOS 2.
+Las dos bases de referencia **ya lo llevan** (`C3` en el desplazamiento `3C5Dh` del fichero; también el `MM.COM` japonés
+2.07K+ de la RC5, en otro sitio). No tenemos ninguna copia real sin el arreglo: las pruebas la fabrican cambiando ese
+byte. Este parche **depende** de él: sobrescribe `3D60h-3DDDh`, el lector que el arreglo deja sin uso (comprobado en
+ejecución, ver las pruebas con la RC5), así que un `MM.COM` con `CA` no se puede parchear con solo el `.ips`.
+
+**Cómo reconoce `aplicar.py`/`aplicar.html` lo que les das** (el mismo algoritmo en Python y en JavaScript, que
+`tests/probar.py` compara byte a byte):
+
+1. Busca `3A E1 5F CB 4F (CA|C3) 4A 3E`. Si está una sola vez y es `CA`, lo cambia a `C3` en una copia.
+2. Pone a cero la **zona de configuración** (`00EEh-0367h` del fichero: ajustes y tabla de programas por extensión, desde
+   `MOGU` hasta justo antes de `Drive set`, que es lo que cambia CS) y calcula el sha1. Si coincide con el de una base de
+   referencia (con la misma zona a cero), es esa versión tal cual, con los ajustes que tenga el usuario; si coincide con el
+   de una base ya parcheada, ya lleva los nombres largos.
+3. Para una base conocida aplica el `.ips` a la copia arreglada (el `.ips` no escribe nada en la zona de configuración, lo
+   comprueba `tools/hacer_parche.py`), así que lo que cambió CS se conserva, y comprueba el sha1 del resultado (sin la
+   zona de configuración, y entero si el fichero de entrada era exactamente el de referencia).
+4. Con un `MM.COM` desconocido que tenga `CA`, solo pone el arreglo y lo guarda como `MM_NEXTOR.COM`; no lo hemos
+   probado en esas versiones. Con uno desconocido que ya tenga `C3`, o sin el sitio, lo rechaza.
+
+Qué cambia CS: con la 2.07_A, 59 bytes entre `0108h` y `0328h`; con la RC5 (CS 3.12), 13 bytes entre `00FDh` y `02C8h`
+(medido en openMSX). Nada fuera de `00EEh-0367h`.
+
+**Otros parches de la comunidad** (revisados el 3 de noviembre de 2026): el FAT16 y el del año 2000 ya van dentro de la
+RC5, así que basta usarla de base. El «copy directories» (Marcos Daniel, 2.07a, sin preguntar al crear carpetas al copiar)
+solo se distribuye en la lista de correo MSX Global y no publica desplazamientos. Otros parches de FAT16 (los de Okei,
+`MM207-F-FAT16-a`) aparecen en los comentarios de MSX.org, donde se dice que no funcionaban en FAT16; no hemos visto
+ninguna copia. Si alguien aporta un `MM.COM` con alguno de ellos, se puede añadir como base o como parche opcional del
+mismo motor.
 
 Todo lo que sigue (direcciones, zonas, pruebas) se escribió y se midió sobre la 2.07_A; la RC5 tiene el mismo código
 en las mismas direcciones, y lo que cambia se cuenta al final.
@@ -129,7 +164,7 @@ la pila en la página 2 (alguna rutina de MM la pone ahí) no se cambia el segme
 
 | Zona | Qué era | Qué va |
 | --- | --- | --- |
-| `3D07h-3D2Ah`, `3D60h-3DDDh`, `3DDFh-3E01h` | el lector de directorios por sectores de MM (solo FAT12), muerto: `3D5Dh` lo salta con un `JP 3E4Ah` | de la versión 1: el gancho del listado, tablas, rutinas pequeñas y las variables de un byte |
+| `3D07h-3D2Ah`, `3D60h-3DDDh`, `3DDFh-3E01h` | el lector de directorios por sectores de MM (solo FAT12), muerto gracias al arreglo de Nextor: `3D5Dh` lo salta con un `JP 3E4Ah` | de la versión 1: el gancho del listado, tablas, rutinas pequeñas y las variables de un byte |
 | `5CF4h-5FAEh` (+ variables hasta `5FBCh`) | detrás del final de MM.COM, sin usar | File info (versión 1); se añade al fichero |
 | `5FBFh-600Fh` del fichero | lo pisan luego las marcas y los registros de MM | el arranque |
 | `CB92h-D0EAh` | la pila de MM, que no baja de `D3xxh` | la pasada, la lista y la tabla (se copia del fichero) |
@@ -187,8 +222,9 @@ la raíz del `MMv2.07Aplus-RC5.zip` interior; manual «patched FAT16 & Y2K»). C
   diálogos), tablas de configuración y asociaciones del principio del fichero, el arreglo del reloj (año 2000: la
   rutina que pinta las cifras de `0D8Ah` y un envoltorio en `5CF0h` que llama a `15A8h`), el arranque (se quita la
   comprobación de turbo R de `5CC4h` y el byte que ponía en `0722h` queda fijo; `0100h` salta directo a `5783h`) y una
-  protección de FAT16 (`wr[Y]ting` se ignora en FAT16; el manual dice que no se use Sort ni el Filer en FAT16). No es
-  una adaptación a Nextor: el listado ya iba por la API de DOS 2 (`3D5Dh` salta a `3E4Ah`).
+  protección de FAT16 (`wr[Y]ting` se ignora en FAT16; el manual dice que no se use Sort ni el Filer en FAT16). El
+  arreglo de Nextor (`3D5Dh`: `C3` en vez de `CA`, ver «El arreglo de Nextor») lo llevan las dos versiones, así que no
+  es eso lo que distingue a la RC5.
 - **Lo que choca con el parche, y cómo se resuelve:**
   1. *El arranque.* La 2.07_A arranca en `5CC4h` y esa rutina acaba en `JP 5783h`; en la RC5 `0100h` ya salta a
      `5783h`. `MMSTART` vale `5783h` (`RC5 equ 1`, que `parchear.py` escribe en `variante.inc`).
@@ -230,6 +266,10 @@ fallos); con Nextor 3.0 la RC5 no se ha probado. Con los cuatro binarios:
   en `3DCDh`) son del `COMMAND2.COM` que `[X]ecom` carga en el TPA, y del `dir` de DOS al salir de MM. Cuidado: el resto
   de `5CD0h-5CFFh` **no** está muerto (en la 2.07_A, `5CD1h-5CEBh` corre una vez por cada vuelta de `[X]ecom`; en la RC5,
   `5CF0h-5CFFh` lee el reloj sin parar), pero ahí el parche no escribe nada.
+- **Un `MM.COM` con la configuración cambiada con CS** (el de una tarjeta real: 2.07_A con `OPFXSD` en la tabla de programas,
+  8 bytes distintos de la referencia en `0328h`), parcheado con `aplicar.py` y puesto en su propia carpeta `MM` (con su
+  `MM.EXE`, `MM.TBL`, etc.), con Nextor 2.1.4: escenario `interaccion` completo, 10 comprobaciones, 0 fallos. La tabla del
+  usuario sale intacta en el fichero parcheado.
 - Límites del banco: va en SCREEN 7 y no hay forma de leer el texto de la pantalla, así que los nombres se verifican
   mirando las capturas; los controles mecánicos son hashes de VRAM, prompts de DOS y que no salga `Unrecognized command`.
   Dos diferencias entre versiones que no son del parche: al volver de un programa el cursor se queda donde estaba en la
