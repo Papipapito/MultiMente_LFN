@@ -1,7 +1,8 @@
-"""parchear.py — aplica mmlfn.asm (nombres largos en la lista y en File info) al MM.COM original de Multi Mente 2.07_A.
+"""parchear.py — aplica mmlfn.asm (nombres largos en la lista y en File info) al MM.COM de Multi Mente: el original 2.07_A o el 2.07A+ RC5.
 
 Uso:  python parchear.py MM.COM.original MM.COM.nuevo [--simbolos fichero.sym]
-El original (23.539 bytes, sha1 db7316e2...) NO va en el repositorio: hay que traer el propio.
+El original (2.07_A: 23.539 bytes, sha1 db7316e2...; 2.07A+ RC5: 23.552 bytes, sha1 09c4a6b4...) NO va en el
+repositorio: hay que traer el propio. La variante se elige sola por el sha1.
 Normalmente no se llama a mano: lo usa tools/hacer_parche.py.
 Necesita pasmo (http://pasmo.speccy.org/): en el PATH o, en Windows, dentro de WSL."""
 import hashlib
@@ -12,7 +13,11 @@ import sys
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 BASE = 0x100
-SHA1_ORIGINAL = "db7316e2b8f17deb1c34df909e2b8da8133e1601"
+# sha1 -> (nombre, RC5 en mmlfn.asm, lo que hay en 0100h)
+VARIANTES = {
+    "db7316e2b8f17deb1c34df909e2b8da8133e1601": ("2.07_A", 0, b"\xC3\xC4\x5C"),     # JP 5CC4h
+    "09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0": ("2.07A+ RC5", 1, b"\xC3\x83\x57"),  # JP 5783h
+}
 # direccion: (bytes originales, opcode nuevo, simbolo)
 GANCHOS = {
     0x0100: (b"\xC3\xC4\x5C", 0xC3, "start"),
@@ -32,7 +37,9 @@ MARCAS = 0x5FBF         # MM usa desde aqui (marcas, _DPARM, registros): el arra
 P3ORG = 0xCB92          # MM usa hasta CB91h
 
 
-def ensamblar(simbolos_a=None):
+def ensamblar(rc5, simbolos_a=None):
+    with open(os.path.join(AQUI, "variante.inc"), "w") as f:
+        f.write("RC5 equ %d\n" % rc5)
     for f in ("mmlfn.hex", "mmlfn.sym"):
         if os.path.exists(os.path.join(AQUI, f)):
             os.remove(os.path.join(AQUI, f))
@@ -59,7 +66,7 @@ def ensamblar(simbolos_a=None):
                 memoria[dir_ + i] = b[4 + i]
     if simbolos_a:
         shutil.copyfile(os.path.join(AQUI, "mmlfn.sym"), simbolos_a)
-    for f in ("mmlfn.hex", "mmlfn.sym"):
+    for f in ("mmlfn.hex", "mmlfn.sym", "variante.inc"):
         os.remove(os.path.join(AQUI, f))
     return memoria, simbolos
 
@@ -75,12 +82,17 @@ def main():
         sys.exit(__doc__)
     orig, salida = args
     d = bytearray(open(orig, "rb").read())
-    if hashlib.sha1(d).hexdigest() != SHA1_ORIGINAL:
-        sys.exit("%s no es el MM.COM 2.07_A original (sha1 %s)" % (orig, SHA1_ORIGINAL))
-    memoria, s = ensamblar(simbolos_a)
-    fin_com = BASE + len(d)                     # 5CF3h
+    sha = hashlib.sha1(d).hexdigest()
+    if sha not in VARIANTES:
+        sys.exit("%s no es el MM.COM 2.07_A ni el 2.07A+ RC5 originales (sha1 %s)" % (orig, sha))
+    nombre, rc5, entrada = VARIANTES[sha]
+    print("base: Multi Mente %s" % nombre)
+    memoria, s = ensamblar(rc5, simbolos_a)
+    ganchos = dict(GANCHOS)
+    ganchos[0x0100] = (entrada,) + GANCHOS[0x0100][1:]
+    fin_com = BASE + len(d)                     # 5CF3h (RC5: 5D00h)
     assert d[0x3D5D - BASE:0x3D60 - BASE] == b"\xC3\x4A\x3E", "3D5Dh no es JP 3E4Ah"
-    for dir_, (antes, op, sim) in GANCHOS.items():
+    for dir_, (antes, op, sim) in ganchos.items():
         o = dir_ - BASE
         assert d[o:o + 3] == antes, "%04X: %s" % (dir_, d[o:o + 3].hex())
         d[o:o + 3] = bytes((op, s[sim] & 0xFF, s[sim] >> 8))
@@ -95,7 +107,7 @@ def main():
             d[a - BASE] = memoria[a]
         print("%04Xh-%04Xh: %d de %d bytes" % (ini, s[fin] - 1, s[fin] - ini, limite - ini))
     # File info (version 1): detras del final de MM.COM, hasta las marcas
-    assert s["name"] > fin_com and s["finvar"] <= MARCAS, "las variables pasan de %04Xh" % (MARCAS - 1)
+    assert s["name"] >= fin_com and s["finvar"] <= MARCAS, "las variables pasan de %04Xh" % (MARCAS - 1)
     d.extend(b"\x00" * (MARCAS - fin_com))
     for a in range(s["name"], s["fincod"]):
         d[a - BASE] = memoria[a]

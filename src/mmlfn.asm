@@ -60,7 +60,12 @@ FIB             equ     0C934h          ; el FIB de MM al listar
 PATH            equ     5780h           ; ruta de MM: "X:\..." (PATH+3 = 0 en la raiz)
 DPB             equ     5FDFh           ; el _DPARM que hace MM al leer el directorio
 REC0            equ     5FFFh           ; el primer registro
+                include "variante.inc"  ; RC5 = 0: 2.07_A original; 1: 2.07A+ RC5 (lo escribe parchear.py)
+                if RC5
+MMSTART         equ     5783h           ; RC5: 0100h salta directo al arranque de MM
+                else
 MMSTART         equ     5CC4h           ; el arranque de MM (lo que habia en 0100h)
+                endif
 MMDEFER         equ     0651h           ; la rutina de errores de disco de MM (588Bh)
 MMABORT         equ     056Ah           ; la de abort que pone MM para listar (0786h)
 MAINLST         equ     07AEh           ; la vuelta del listado de siempre (07ABh)
@@ -218,8 +223,12 @@ dta80:          ld      de,80h
 target:         dw      0               ; el registro que se pinta
 fin3ddf:
 
-; ================================================================ 5CF4h
+; ================================================================ 5CF4h (RC5: 5D00h)
+                if RC5
+                org     5D00h           ; detras del final de la RC5: 5CC4h-5CCFh y 5CEAh-5CEFh
+                else                    ; (relleno de 1Ah) llevan las variables, mas abajo
                 org     5CF4h
+                endif
 
 ; ---------------------------------------------------------------- File info sin tabla
 ; HL = DE = registro (nombre 8.3 de 11 bytes); POS en el valor de "Name:".
@@ -602,6 +611,17 @@ mul13:          ld      l,a
 
 fincod:
 ; variables (no van en el fichero)
+                if RC5
+; la RC5 acaba en 5D00h y el codigo ya no deja sitio detras: las variables van en el
+; relleno de 1Ah que ninguna rutina de MM toca (comprobado: nadie referencia esas direcciones)
+frame           equ     5CC4h
+lfnp            equ     5CC6h
+savesp          equ     5CC8h
+clus            equ     5CCAh
+left            equ     5CCCh
+sect            equ     5CEAh           ; 4 bytes
+finvar          equ     fincod
+                else
 frame           equ     fincod
 lfnp            equ     frame+2
 savesp          equ     lfnp+2
@@ -609,6 +629,7 @@ clus            equ     savesp+2
 left            equ     clus+2
 sect            equ     left+2
 finvar          equ     sect+4
+                endif
 
 ; ================================================================ 5FBFh: arranque
 ; Corre una vez, donde lo deja la carga: luego MM escribe aqui sus marcas y registros.

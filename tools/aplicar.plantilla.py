@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""MM_LFN - long file names for Multi Mente __VERSION__ / nombres largos para Multi Mente __VERSION__.
+"""MM_LFN - long file names for Multi Mente / nombres largos para Multi Mente.
 
   python aplicar.py MM.COM               ->  MM_LFN.COM, next to MM.COM / al lado de MM.COM
   python aplicar.py MM.COM -o OUT.COM
 
-Hace falta el MM.COM ORIGINAL de Multi Mente __VERSION__ (__TAM_ORIGINAL__ bytes, sha1 __SHA1_ORIGINAL__).
-You need the ORIGINAL MM.COM of Multi Mente __VERSION__ (__TAM_ORIGINAL__ bytes, sha1 __SHA1_ORIGINAL__).
+Hace falta el MM.COM ORIGINAL, sin tocar / You need the ORIGINAL, untouched MM.COM:
+  __LISTA__
 No hace falta nada mas que Python 3 / Nothing else is needed but Python 3.
 
 Fichero generado por tools/hacer_parche.py: no lo edites a mano / generated file, do not edit.
@@ -16,11 +16,8 @@ import locale
 import os
 import sys
 
-SHA1_ORIGINAL = "__SHA1_ORIGINAL__"
-SHA1_PARCHEADO = "__SHA1_PARCHEADO__"
-IPS = base64.b64decode(
-    "__IPS_B64__"
-)
+# sha1 del original -> el parche (IPS) y lo que sale
+BASES = __BASES__
 
 try:
     locale.setlocale(locale.LC_ALL, "")
@@ -71,18 +68,20 @@ def main(argv):
     except OSError as e:
         sys.exit(T("No puedo leer %s: %s", "Cannot read %s: %s") % (entrada, e))
     sha = hashlib.sha1(datos).hexdigest()
-    if sha == SHA1_PARCHEADO:
+    if any(sha == b["parcheado"] for b in BASES.values()):
         sys.exit(T("%s ya lleva el parche de nombres largos.", "%s already has the long-name patch.") % entrada)
-    if sha != SHA1_ORIGINAL:
+    if sha not in BASES:
         sys.exit(T(
-            "%s no es el MM.COM original de Multi Mente __VERSION__.\n  sha1 de tu fichero: %s\n  sha1 esperado:      %s\n"
-            "El parche solo vale para esa version exacta (y sin tocar: no sirve un MM.COM ya parcheado "
+            "%s no es un MM.COM original que conozca.\n  sha1 de tu fichero: %s\n  Valen:\n    %s\n"
+            "El parche solo vale para esas versiones exactas, sin tocar (no sirve un MM.COM ya parcheado "
             "o con las asociaciones cambiadas).",
-            "%s is not the original Multi Mente __VERSION__ MM.COM.\n  your file's sha1: %s\n  expected sha1:    %s\n"
-            "The patch only fits that exact version, untouched (a MM.COM that is already patched "
-            "or has edited associations will not do).") % (entrada, sha, SHA1_ORIGINAL))
-    nuevo = aplicar_ips(datos, IPS)
-    if hashlib.sha1(nuevo).hexdigest() != SHA1_PARCHEADO:
+            "%s is not an original MM.COM I know.\n  your file's sha1: %s\n  These fit:\n    %s\n"
+            "The patch only fits those exact versions, untouched (a MM.COM that is already patched "
+            "or has edited associations will not do).") % (entrada, sha, "\n    ".join(
+                "%s: %s" % (b["nombre"], s) for s, b in BASES.items())))
+    base = BASES[sha]
+    nuevo = aplicar_ips(datos, base64.b64decode(base["ips"]))
+    if hashlib.sha1(nuevo).hexdigest() != base["parcheado"]:
         sys.exit(T("Error interno: el resultado no es el esperado.", "Internal error: unexpected result."))
     if salida is None:
         salida = os.path.join(os.path.dirname(os.path.abspath(entrada)), "MM_LFN.COM")
@@ -90,7 +89,8 @@ def main(argv):
         sys.exit(T("No sobrescribo el original: usa otro nombre con -o.", "Not overwriting the original: use another name with -o."))
     with open(salida, "wb") as f:
         f.write(nuevo)
-    print(T("Hecho: %s (%d bytes, sha1 %s)", "Done: %s (%d bytes, sha1 %s)") % (salida, len(nuevo), SHA1_PARCHEADO))
+    print(T("Multi Mente %s: hecho. %s (%d bytes, sha1 %s)", "Multi Mente %s: done. %s (%d bytes, sha1 %s)")
+          % (base["nombre"], salida, len(nuevo), base["parcheado"]))
     print(T("Copialo a la tarjeta como MM.COM, en la carpeta de Multi Mente (junto a MM.EXE y MM.CFG).",
             "Copy it to the card as MM.COM, in the Multi Mente folder (next to MM.EXE and MM.CFG)."))
 

@@ -8,8 +8,15 @@ desensamblado. `src/mmlfn.asm` es el código nuevo y `src/parchear.py` lo ensamb
 [pasmo](http://pasmo.speccy.org/) y lo aplica al MM.COM original; `tools/hacer_parche.py` hace de ahí
 el `MM_LFN.ips` y los aplicadores.
 
-El original tiene 23.539 bytes (sha1 `db7316e2b8f17deb1c34df909e2b8da8133e1601`); el parcheado, 25.673
-(sha1 `479dade9e4d01e6477d9f07e29a0e7d5aa0e6911`).
+Vale para dos bases (`src/parchear.py` elige por el sha1; ver «La variante RC5» más abajo):
+
+| Base | Original | Parcheado |
+| --- | --- | --- |
+| 2.07_A | 23.539 bytes, sha1 `db7316e2b8f17deb1c34df909e2b8da8133e1601` | 25.673 bytes, sha1 `479dade9e4d01e6477d9f07e29a0e7d5aa0e6911` |
+| 2.07A+ RC5 | 23.552 bytes, sha1 `09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0` | 25.673 bytes, sha1 `5b97f818fc2496069c4aeef4e9cfcf2688dfe2bd` |
+
+Todo lo que sigue (direcciones, zonas, pruebas) se escribió y se midió sobre la 2.07_A; la RC5 tiene el mismo código
+en las mismas direcciones, y lo que cambia se cuenta al final.
 
 ## Cómo se ve
 
@@ -166,3 +173,64 @@ imagen` (FAT16 de 256 MB, clusters de 4 KB):
 - con puntos de vigilancia en `CB92h-D0EAh`: no escribe nadie más que el parche (y Nextor
   en el búfer de `_GETCLUS`); la pila no baja de `D3EAh` (Nextor 3, File info leyendo
   el disco) ni, con la tabla, de `D6E5h` (Nextor 3) y `D7D8h` (Nextor 2.1.4).
+
+## La variante RC5
+
+Multi Mente 2.07A+ RC5 es la compilación de la comunidad que reparte MSX Resource Center (el `MM.COM` en inglés de
+la raíz del `MMv2.07Aplus-RC5.zip` interior; manual «patched FAT16 & Y2K»). Comparada con la 2.07_A:
+
+- **Mismo código, mismas direcciones.** Salvo los 13 bytes que añade al final, todos los cambios conservan el tamaño.
+  Los 8 sitios donde engancha este parche (`3E4Ah`, `3E88h`, `3E82h`, `33BFh`, `34C3h`, `34D5h`, `3547h`, `586Fh`) son
+  idénticos a los de la 2.07_A, y las rutinas de MM que llama el parche (`1376h`, `13BAh`, `15A8h`, `164Eh`, `36C4h`,
+  `35C3h`, `56E2h`...) están en el mismo sitio.
+- **Qué cambia en la RC5** (desensamblado de la diferencia, 121 bloques): textos (cadena de versión `2.07A+`,
+  diálogos), tablas de configuración y asociaciones del principio del fichero, el arreglo del reloj (año 2000: la
+  rutina que pinta las cifras de `0D8Ah` y un envoltorio en `5CF0h` que llama a `15A8h`), el arranque (se quita la
+  comprobación de turbo R de `5CC4h` y el byte que ponía en `0722h` queda fijo; `0100h` salta directo a `5783h`) y una
+  protección de FAT16 (`wr[Y]ting` se ignora en FAT16; el manual dice que no se use Sort ni el Filer en FAT16). No es
+  una adaptación a Nextor: el listado ya iba por la API de DOS 2 (`3D5Dh` salta a `3E4Ah`).
+- **Lo que choca con el parche, y cómo se resuelve:**
+  1. *El arranque.* La 2.07_A arranca en `5CC4h` y esa rutina acaba en `JP 5783h`; en la RC5 `0100h` ya salta a
+     `5783h`. `MMSTART` vale `5783h` (`RC5 equ 1`, que `parchear.py` escribe en `variante.inc`).
+  2. *El final del fichero.* La RC5 acaba en `5D00h` (la 2.07_A en `5CF3h`) y el código de File info (699 bytes) ya no
+     cabe antes de `5FBFh` con sus 14 bytes de variables. En la RC5 el código va desde `5D00h` y las variables van en el
+     relleno de `1Ah` que deja la RC5 en `5CC4h-5CCDh` y `5CEAh-5CEDh`; ninguna instrucción referencia esas direcciones
+     (comprobado buscando `xx 5C` tras un código de operación de salto, carga o llamada). `5CD0h-5CDBh` (el despachador
+     de FAT16, al que solo se llega desde `3D60h`), `5CE0h-5CE9h` y `5CF0h-5CFFh` (el arreglo del reloj, que **sí** se
+     ejecuta) no se tocan: en el `.ips` no hay ni un byte entre `5CC0h` y `5CFFh`.
+  3. *`3D60h`.* La RC5 puso ahí un `JP 5CD0h`, justo en el código muerto de MM que este parche sobrescribe
+     (`3D60h-3DDDh`). Nadie salta a `3D60h` ni a `5CD0h` (ni en MM.COM ni en MM.EXE) y `3D5Dh` sigue siendo un `JP 3E4Ah`
+     incondicional: queda sin ejecutarse, como en la 2.07_A. Se comprobó también en ejecución (ver más abajo).
+- **Resultado:** el parche toca los mismos 14 tramos de la 2.07_A (arranque, 7 ganchos, las zonas muertas y la cola). El
+  `MM_LFN_RC5.ips` pesa 2.417 bytes.
+
+### Pruebas con la RC5 (banco `tests/openmsx/probar_mm.py`)
+
+Mismo montaje (Philips NMS 8245, 4 MB, Sunrise IDE, imagen FAT16 de 256 MB hecha con `MSXsdmaker.py`), con la RC5
+original y la parcheada y, como referencia, la 2.07_A original y la parcheada, con Nextor 2.1.1 (el kernel que trae
+openMSX). Con Nextor 2.1.4 se repitió solo la lista y File info de todos los elementos de la RC5 parcheada (sin
+fallos); con Nextor 3.0 la RC5 no se ha probado. Con los cuatro binarios:
+
+- **Lista y File info** (`--escenario lista`, 12 elementos; con `--info-todos`, todos): en la RC5 parcheada salen los
+  mismos nombres que en la 2.07_A parcheada, y los ficheros con solo 8.3 salen como siempre. La cabecera sigue diciendo
+  `MM v2.07A+` y el reloj marca bien el año.
+- **Interacción** (`--escenario interaccion`, 42 capturas por pasada, 10 comprobaciones mecánicas, 0 fallos en los
+  cuatro): ordenar por nombre ascendente y descendente (carpetas primero; cada hueco sigue siendo de su fichero:
+  comprobado por el tamaño de File info en 8 posiciones), marcar 3 ficheros y desmarcarlos, entrar en una carpeta con
+  nombre largo y volver, volver 4 veces de `[X]ecom` (`ver`, un `HOLA.COM`, `dir`, `HOLA.COM`; la lista se repinta
+  idéntica byte a byte en VRAM), borrar, copiar (lo copiado sale con el 8.3, como avisa el LEEME) y salir.
+- **`CS MM`** (CS 3.11 con la 2.07_A, CS 3.12 con la RC5; el MM parcheado tiene 25.673 bytes): CS termina bien
+  (`complete`), no cambia el tamaño ni trunca, y solo toca el bloque de configuración del principio (59 bytes entre
+  `0108h` y `0328h` en la 2.07_A; 13 bytes entre `00FDh` y `02C8h` en la RC5), nada del código del parche. Después MM
+  arranca y sigue enseñando nombres largos, con los mismos hashes de VRAM que sin CS. En este entorno CS no lanza MM
+  al acabar (vuelve al prompt), también con el original.
+- **Código «muerto»** (`--contar-ejecucion "3D60-3DDD 5CD0-5CFF"`, un punto de ruptura en cada instrucción, con los
+  originales sin parche, durante el escenario entero): en `3D60h-3DDDh` el código de MM.COM no se ejecuta ni una vez ni
+  en la 2.07_A ni en la RC5, ni tampoco `5CD0h`. Los aciertos que salen en esas direcciones (2 a 4 en `3D60h`, 123 a 145
+  en `3DCDh`) son del `COMMAND2.COM` que `[X]ecom` carga en el TPA, y del `dir` de DOS al salir de MM. Cuidado: el resto
+  de `5CD0h-5CFFh` **no** está muerto (en la 2.07_A, `5CD1h-5CEBh` corre una vez por cada vuelta de `[X]ecom`; en la RC5,
+  `5CF0h-5CFFh` lee el reloj sin parar), pero ahí el parche no escribe nada.
+- Límites del banco: va en SCREEN 7 y no hay forma de leer el texto de la pantalla, así que los nombres se verifican
+  mirando las capturas; los controles mecánicos son hashes de VRAM, prompts de DOS y que no salga `Unrecognized command`.
+  Dos diferencias entre versiones que no son del parche: al volver de un programa el cursor se queda donde estaba en la
+  2.07_A y vuelve a `..\` en la RC5, que además repinta más despacio (pausas de 7-8 s emulados al borrar o copiar).

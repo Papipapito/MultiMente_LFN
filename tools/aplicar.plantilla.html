@@ -33,6 +33,7 @@
            border:0; border-radius:8px; cursor:pointer; }
   button:focus-visible, #zona:focus-within { outline:3px solid var(--acento); outline-offset:2px; }
   footer { margin-top:2rem; font-size:.875rem; }
+  footer ul { margin:.25rem 0; padding-left:1.25rem; }
 </style>
 </head>
 <body>
@@ -43,15 +44,14 @@
   <div id="resultado" role="status" aria-live="polite"></div>
   <footer class="suave">
     <p id="t-pie"></p>
-    <p><code>MM.COM __VERSION__: __TAM_ORIGINAL__ bytes, sha1 __SHA1_ORIGINAL__</code><br>
-       <code>MM_LFN.COM: __TAM_PARCHEADO__ bytes, sha1 __SHA1_PARCHEADO__</code></p>
+    <p id="t-versiones"></p>
+    <ul id="lista-versiones"></ul>
   </footer>
 </main>
 <script>
 "use strict";
-const SHA1_ORIGINAL = "__SHA1_ORIGINAL__";
-const SHA1_PARCHEADO = "__SHA1_PARCHEADO__";
-const IPS_B64 = "__IPS_B64__";
+// sha1 del original -> { nombre, tam_original, parcheado (sha1), tam_parcheado, ips (base64) }
+const BASES = __BASES__;
 
 // ---- nucleo (sin DOM; lo prueba tests/probar.py con node) ----
 function sha1(bytes) {
@@ -82,8 +82,8 @@ function sha1(bytes) {
   return h.map(x => x.toString(16).padStart(8, "0")).join("");
 }
 
-function ipsBytes() {
-  const bin = atob(IPS_B64), out = new Uint8Array(bin.length);
+function ipsBytes(shaOriginal) {
+  const bin = atob(BASES[shaOriginal].ips), out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
@@ -108,9 +108,12 @@ function aplicarIps(datos, ips) {
   return out;
 }
 
-function comprobar(datos) {            // "original" | "parcheado" | "otro"
-  const s = sha1(datos);
-  return s === SHA1_ORIGINAL ? "original" : s === SHA1_PARCHEADO ? "parcheado" : "otro";
+// { estado: "original" | "parcheado" | "otro", sha, base }
+function comprobar(datos) {
+  const sha = sha1(datos);
+  if (BASES[sha]) return { estado: "original", sha, base: BASES[sha] };
+  const base = Object.values(BASES).find(b => b.parcheado === sha);
+  return base ? { estado: "parcheado", sha, base } : { estado: "otro", sha, base: null };
 }
 
 // ---- pagina ----
@@ -118,21 +121,23 @@ if (typeof document !== "undefined") {
   const TXT = {
     es: {
       titulo: "Nombres largos para Multi Mente",
-      sub: "Elige el MM.COM original de Multi Mente __VERSION__ y descarga el MM.COM con nombres largos. Todo ocurre en tu navegador: el fichero no se sube a ningún sitio.",
+      sub: "Elige el MM.COM original de Multi Mente (2.07_A o 2.07A+ RC5) y descarga el MM.COM con nombres largos. Todo ocurre en tu navegador: el fichero no se sube a ningún sitio.",
       zona: "Suelta aquí tu MM.COM, o pulsa para elegirlo",
       pie: "Después copia el fichero resultante a la tarjeta como MM.COM, en la carpeta de Multi Mente (junto a MM.EXE y MM.CFG). Necesita Nextor 2.1 o 3.0.",
-      ok: "Hecho", okMsg: "Parche aplicado (%n bytes). Pulsa para descargar MM_LFN.COM.", descargar: "Descargar MM_LFN.COM",
-      ya: "Ya está parcheado", yaMsg: "Este MM.COM ya lleva el parche de nombres largos.",
-      mal: "No es el MM.COM original", malMsg: "Tu fichero no es Multi Mente __VERSION__ sin tocar (sha1 %s). El parche solo vale para esa versión exacta: no sirve un MM.COM ya parcheado ni con las asociaciones cambiadas.",
+      versiones: "Versiones admitidas, sin tocar:",
+      ok: "Hecho", okMsg: "Multi Mente %v: parche aplicado (%n bytes). Pulsa para descargar MM_LFN.COM.", descargar: "Descargar MM_LFN.COM",
+      ya: "Ya está parcheado", yaMsg: "Este MM.COM (Multi Mente %v) ya lleva el parche de nombres largos.",
+      mal: "No es un MM.COM original que conozca", malMsg: "Tu fichero tiene sha1 %s. El parche solo vale para las versiones de abajo, sin tocar: no sirve un MM.COM ya parcheado ni con las asociaciones cambiadas.",
     },
     en: {
       titulo: "Long file names for Multi Mente",
-      sub: "Pick the original Multi Mente __VERSION__ MM.COM and download the MM.COM with long file names. Everything happens in your browser: the file is not uploaded anywhere.",
+      sub: "Pick the original Multi Mente MM.COM (2.07_A or 2.07A+ RC5) and download the MM.COM with long file names. Everything happens in your browser: the file is not uploaded anywhere.",
       zona: "Drop your MM.COM here, or click to choose it",
       pie: "Then copy the result to the card as MM.COM, in the Multi Mente folder (next to MM.EXE and MM.CFG). Needs Nextor 2.1 or 3.0.",
-      ok: "Done", okMsg: "Patch applied (%n bytes). Click to download MM_LFN.COM.", descargar: "Download MM_LFN.COM",
-      ya: "Already patched", yaMsg: "This MM.COM already has the long-name patch.",
-      mal: "Not the original MM.COM", malMsg: "Your file is not an untouched Multi Mente __VERSION__ (sha1 %s). The patch only fits that exact version: a MM.COM that is already patched or has edited associations will not do.",
+      versiones: "Supported versions, untouched:",
+      ok: "Done", okMsg: "Multi Mente %v: patch applied (%n bytes). Click to download MM_LFN.COM.", descargar: "Download MM_LFN.COM",
+      ya: "Already patched", yaMsg: "This MM.COM (Multi Mente %v) already has the long-name patch.",
+      mal: "Not an original MM.COM I know", malMsg: "Your file's sha1 is %s. The patch only fits the versions below, untouched: a MM.COM that is already patched or has edited associations will not do.",
     },
   };
   const L = TXT[(navigator.language || "en").toLowerCase().startsWith("es") ? "es" : "en"];
@@ -141,6 +146,13 @@ if (typeof document !== "undefined") {
   document.getElementById("t-sub").textContent = L.sub;
   document.getElementById("t-zona").textContent = L.zona;
   document.getElementById("t-pie").textContent = L.pie;
+  document.getElementById("t-versiones").textContent = L.versiones;
+  for (const [sha, b] of Object.entries(BASES)) {
+    const li = document.createElement("li"), c = document.createElement("code");
+    c.textContent = b.nombre + ": " + b.tam_original + " bytes, sha1 " + sha;
+    li.append(c);
+    document.getElementById("lista-versiones").append(li);
+  }
   const res = document.getElementById("resultado"), zona = document.getElementById("zona"),
         fich = document.getElementById("fichero");
 
@@ -153,11 +165,11 @@ if (typeof document !== "undefined") {
 
   async function procesar(archivo) {
     const datos = new Uint8Array(await archivo.arrayBuffer());
-    const estado = comprobar(datos);
-    if (estado === "parcheado") return mostrar("ok", L.ya, L.yaMsg);
-    if (estado === "otro") return mostrar("mal", L.mal, L.malMsg.replace("%s", sha1(datos)));
-    const nuevo = aplicarIps(datos, ipsBytes());
-    if (sha1(nuevo) !== SHA1_PARCHEADO) return mostrar("mal", L.mal, "Internal error / Error interno");
+    const c = comprobar(datos);
+    if (c.estado === "parcheado") return mostrar("ok", L.ya, L.yaMsg.replace("%v", c.base.nombre));
+    if (c.estado === "otro") return mostrar("mal", L.mal, L.malMsg.replace("%s", c.sha));
+    const nuevo = aplicarIps(datos, ipsBytes(c.sha));
+    if (sha1(nuevo) !== c.base.parcheado) return mostrar("mal", L.mal, "Internal error / Error interno");
     const boton = document.createElement("button");
     boton.textContent = L.descargar;
     boton.onclick = () => {
@@ -167,7 +179,7 @@ if (typeof document !== "undefined") {
       document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     };
-    mostrar("ok", L.ok, L.okMsg.replace("%n", nuevo.length), boton);
+    mostrar("ok", L.ok, L.okMsg.replace("%v", c.base.nombre).replace("%n", nuevo.length), boton);
   }
 
   fich.addEventListener("change", () => fich.files[0] && procesar(fich.files[0]));
