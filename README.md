@@ -28,8 +28,9 @@ that comes with your `MM.COM`; the patch does not touch it.
 
 Pick any of these:
 
-1. **Web page, nothing to install:** open [`aplicar.html`](aplicar.html) in a browser and drop your `MM.COM` on it.
-   It runs in your browser; the file is not uploaded anywhere.
+1. **Web page, nothing to install:** open [the online patcher](https://papipapito.github.io/MultiMente_LFN/aplicar.html)
+   (or the downloaded [`aplicar.html`](aplicar.html)) in a browser and drop your `MM.COM` on it. It runs in your
+   browser; the file is not uploaded anywhere.
 2. **Python 3:** `python aplicar.py MM.COM` → writes `MM_LFN.COM` next to it.
 3. **Any IPS patcher** (Floating IPS, Lunar IPS…): apply [`MM_LFN.ips`](MM_LFN.ips) (2.07_A) or
    [`MM_LFN_RC5.ips`](MM_LFN_RC5.ips) (RC5) to `MM.COM`. IPS patchers do not check the source file, so check the

@@ -28,8 +28,9 @@ parche no lo toca.
 
 Elige una de estas:
 
-1. **Página web, sin instalar nada:** abre [`aplicar.html`](aplicar.html) en el navegador y suelta encima tu
-   `MM.COM`. Todo ocurre en tu navegador: el fichero no se sube a ningún sitio.
+1. **Página web, sin instalar nada:** abre [el aplicador en línea](https://papipapito.github.io/MultiMente_LFN/aplicar.html)
+   (o el [`aplicar.html`](aplicar.html) descargado) en el navegador y suelta encima tu `MM.COM`. Todo ocurre en tu
+   navegador: el fichero no se sube a ningún sitio.
 2. **Python 3:** `python aplicar.py MM.COM` → escribe `MM_LFN.COM` al lado.
 3. **Cualquier parcheador de IPS** (Floating IPS, Lunar IPS…): aplica [`MM_LFN.ips`](MM_LFN.ips) (2.07_A) o
    [`MM_LFN_RC5.ips`](MM_LFN_RC5.ips) (RC5) a `MM.COM`. Los parcheadores de IPS no comprueban el fichero de origen:
