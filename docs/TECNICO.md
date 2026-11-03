@@ -12,8 +12,8 @@ Vale para dos bases (`src/parchear.py` elige por el sha1; ver «La variante RC5�
 
 | Base | Original (de referencia) | Parcheado |
 | --- | --- | --- |
-| 2.07_A | 23.539 bytes, sha1 `db7316e2b8f17deb1c34df909e2b8da8133e1601` | 25.673 bytes, sha1 `479dade9e4d01e6477d9f07e29a0e7d5aa0e6911` |
-| 2.07A+ RC5 | 23.552 bytes, sha1 `09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0` | 25.673 bytes, sha1 `5b97f818fc2496069c4aeef4e9cfcf2688dfe2bd` |
+| 2.07_A | 23.539 bytes, sha1 `db7316e2b8f17deb1c34df909e2b8da8133e1601` | 25.726 bytes, sha1 `e69bb4e32c1e86b301fc9e9053d8d264dec1ae0e` |
+| 2.07A+ RC5 | 23.552 bytes, sha1 `09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0` | 25.726 bytes, sha1 `12b9f581186abb647c90b37a0fef23ea55af0e83` |
 
 ## El arreglo de Nextor y cómo se reconoce la versión
 
@@ -60,8 +60,11 @@ antes:    ALESTE~1.ROM    FRAY2-~5.ROM    GOLVEL~5.ROM    KING'S~9.ROM    METALG
 ahora:    Aleste 1 - E>   Fray 2 - Ver>   Golvellius 3>   King's Valle>   Metal Gear 3>
 ```
 
-- En la lista, en todas las vistas (1, 2, 3 y 5 columnas; en las de 1-3, el tamaño y la
-  fecha siguen en su sitio). Los que no tienen nombre largo salen en 8.3, como siempre.
+- En la lista, los 12 primeros caracteres en las vistas de 2, 3 y 5 columnas (en las de 2 y 3, el tamaño
+  y la fecha siguen en su sitio). En la vista de **una columna** (`SHIFT+1`) el hueco es de **31**
+  caracteres, como File info (si pasa de 31, 20 + `...` + 8, para que se vea la extensión), y no se pintan los
+  atributos (los da File info) para hacer sitio: la fila acaba 6 píxeles más a la derecha (nombre, tamaño, fecha y hora).
+  Los que no tienen nombre largo salen en 8.3, como siempre.
 - En File info, si el nombre cabe en el campo (12 caracteres), se pinta en su sitio. Si es
   más largo, ocupa toda la fila hasta el recuadro de `Wild:` (31 caracteres) y tapa la
   fecha de ese fichero; `Size:` y `Time:` siguen en la fila de abajo. Si pasa de 31: los
@@ -92,8 +95,8 @@ ahora:    Aleste 1 - E>   Fray 2 - Ver>   Golvellius 3>   King's Valle>   Metal 
   que MM reserva para copiar (hasta 64). Si MM consigue menos de dos (un mapper de 128 KB),
   se le deja el suyo y la lista sigue en 8.3; File info lee entonces el nombre del disco en
   cada movimiento del cursor, como en la versión 1.
-- **Y sitio en la página 3:** el código va en `CB92h-D0EAh` (MM usa hasta `CB91h` y deja el
-  resto para la pila). Si la cima del TPA está por debajo de `D3EBh`, el parche se queda
+- **Y sitio en la página 3:** el código va en `CB92h-D10Fh` (MM usa hasta `CB91h` y deja el
+  resto para la pila). Si la cima del TPA está por debajo de `D411h`, el parche se queda
   como en la versión 1: nombre largo solo en File info. Con Nextor 2.1.4 la cima es `D806h`
   y con Nextor 3.0 `D706h` (NMS 8245 en openMSX).
 - **Más de 256 ficheros:** MM se queda como mucho con 257 entradas y la tabla tiene sitio
@@ -167,7 +170,7 @@ la pila en la página 2 (alguna rutina de MM la pone ahí) no se cambia el segme
 | `3D07h-3D2Ah`, `3D60h-3DDDh`, `3DDFh-3E01h` | el lector de directorios por sectores de MM (solo FAT12), muerto gracias al arreglo de Nextor: `3D5Dh` lo salta con un `JP 3E4Ah` | de la versión 1: el gancho del listado, tablas, rutinas pequeñas y las variables de un byte |
 | `5CF4h-5FAEh` (+ variables hasta `5FBCh`) | detrás del final de MM.COM, sin usar | File info (versión 1); se añade al fichero |
 | `5FBFh-600Fh` del fichero | lo pisan luego las marcas y los registros de MM | el arranque |
-| `CB92h-D0EAh` | la pila de MM, que no baja de `D3xxh` | la pasada, la lista y la tabla (se copia del fichero) |
+| `CB92h-D10Fh` | la pila de MM, que no baja de `D3xxh` | la pasada, la lista y la tabla (se copia del fichero) |
 | un segmento del mapper | el último de los que MM se queda para copiar | la tabla (`8000h`, 256 × 32), el nombre que se junta, la conversión de caracteres, los clusters de la carpeta y 8 sectores |
 
 No se tocan `3DDEh` ni `3E3Eh` (MM y MM.EXE los reescriben) ni `3D2Bh`-`3D5Fh` y
@@ -184,6 +187,9 @@ No se tocan `3DDEh` ni `3E3Eh` (MM y MM.EXE los reescriben) ni `3D2Bh`-`3D5Fh` y
 | `34C3h` | `CALL 36C4h` | `CALL prep` |
 | `34D5h` | `CALL 13BAh` | `CALL tname` |
 | `3547h` | `CALL 35C3h` | `CALL mydate` |
+| `33D5h` | `LD (1371h),A` | `CALL fldpos` (una columna: el campo siguiente al nombre va 39h más a la derecha) |
+| `3499h` | `LD HL,1371h` | `CALL fatt` (una columna: sin los atributos; solo se llega aquí en esa vista) |
+| `3B72h` | `74h` (de `LD DE,0174h`) | `80h`: la barra del cursor de una columna, 12 píxeles más ancha |
 
 ## Pruebas (openMSX, Philips NMS 8245 con 4 MB y Sunrise IDE)
 
@@ -205,7 +211,7 @@ imagen` (FAT16 de 256 MB, clusters de 4 KB):
 - un error de disco en la pasada (un sector fuera del disco, el segundo error, Abort en el
   diálogo de MM: MM se recupera, vuelve a listar y sigue con su segmento) y CTRL+STOP
   pulsado durante la pasada;
-- con puntos de vigilancia en `CB92h-D0EAh`: no escribe nadie más que el parche (y Nextor
+- con puntos de vigilancia en `CB92h-D0EAh` (antes de la vista de una columna): no escribe nadie más que el parche (y Nextor
   en el búfer de `_GETCLUS`); la pila no baja de `D3EAh` (Nextor 3, File info leyendo
   el disco) ni, con la tabla, de `D6E5h` (Nextor 3) y `D7D8h` (Nextor 2.1.4).
 
@@ -238,7 +244,7 @@ la raíz del `MMv2.07Aplus-RC5.zip` interior; manual «patched FAT16 & Y2K»). C
      (`3D60h-3DDDh`). Nadie salta a `3D60h` ni a `5CD0h` (ni en MM.COM ni en MM.EXE) y `3D5Dh` sigue siendo un `JP 3E4Ah`
      incondicional: queda sin ejecutarse, como en la 2.07_A. Se comprobó también en ejecución (ver más abajo).
 - **Resultado:** el parche toca los mismos 14 tramos de la 2.07_A (arranque, 7 ganchos, las zonas muertas y la cola). El
-  `MM_LFN_RC5.ips` pesa 2.417 bytes.
+  `MM_LFN_RC5.ips` pesa 2.480 bytes.
 
 ### Pruebas con la RC5 (banco `tests/openmsx/probar_mm.py`)
 
@@ -255,7 +261,7 @@ fallos); con Nextor 3.0 la RC5 no se ha probado. Con los cuatro binarios:
   comprobado por el tamaño de File info en 8 posiciones), marcar 3 ficheros y desmarcarlos, entrar en una carpeta con
   nombre largo y volver, volver 4 veces de `[X]ecom` (`ver`, un `HOLA.COM`, `dir`, `HOLA.COM`; la lista se repinta
   idéntica byte a byte en VRAM), borrar, copiar (lo copiado sale con el 8.3, como avisa el LEEME) y salir.
-- **`CS MM`** (CS 3.11 con la 2.07_A, CS 3.12 con la RC5; el MM parcheado tiene 25.673 bytes): CS termina bien
+- **`CS MM`** (CS 3.11 con la 2.07_A, CS 3.12 con la RC5; el MM parcheado tiene 25.726 bytes): CS termina bien
   (`complete`), no cambia el tamaño ni trunca, y solo toca el bloque de configuración del principio (59 bytes entre
   `0108h` y `0328h` en la 2.07_A; 13 bytes entre `00FDh` y `02C8h` en la RC5), nada del código del parche. Después MM
   arranca y sigue enseñando nombres largos, con los mismos hashes de VRAM que sin CS. En este entorno CS no lanza MM
@@ -270,6 +276,12 @@ fallos); con Nextor 3.0 la RC5 no se ha probado. Con los cuatro binarios:
   8 bytes distintos de la referencia en `0328h`), parcheado con `aplicar.py` y puesto en su propia carpeta `MM` (con su
   `MM.EXE`, `MM.TBL`, etc.), con Nextor 2.1.4: escenario `interaccion` completo, 10 comprobaciones, 0 fallos. La tabla del
   usuario sale intacta en el fichero parcheado.
+- **Vista de una columna** (`SHIFT+1`, nombre de 31 y sin atributos): lista de 28 elementos con nombres de hasta 53 caracteres
+  (cada uno con su tamaño, fecha y hora, y la barra del cursor cubre toda la fila), las dos páginas, marcar, entrar en una
+  carpeta con nombre largo y volver, volver de un programa de `[X]ecom`, y los cambios de vista a 3 y 5 columnas (12
+  caracteres, sin cambios). Con la 2.07_A (la tarjeta de un usuario) y con la RC5, Nextor 2.1.4; el escenario `interaccion`
+  completo vuelve a dar 10 de 10 en las dos con el parche nuevo. Con `SHIFT+2` el banco no consigue cambiar de vista (no se
+  ha probado la de 2 columnas).
 - Límites del banco: va en SCREEN 7 y no hay forma de leer el texto de la pantalla, así que los nombres se verifican
   mirando las capturas; los controles mecánicos son hashes de VRAM, prompts de DOS y que no salga `Unrecognized command`.
   Dos diferencias entre versiones que no son del parche: al volver de un programa el cursor se queda donde estaba en la

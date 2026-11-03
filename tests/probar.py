@@ -30,8 +30,8 @@ import tempfile
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # nombre, fichero original, sha1 del original, sha1 del parcheado, fichero IPS
 BASES = [
-    ("2.07_A", "MM.COM", "db7316e2b8f17deb1c34df909e2b8da8133e1601", "479dade9e4d01e6477d9f07e29a0e7d5aa0e6911", "MM_LFN.ips"),
-    ("2.07A+ RC5", "MM_RC5.COM", "09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0", "5b97f818fc2496069c4aeef4e9cfcf2688dfe2bd",
+    ("2.07_A", "MM.COM", "db7316e2b8f17deb1c34df909e2b8da8133e1601", "e69bb4e32c1e86b301fc9e9053d8d264dec1ae0e", "MM_LFN.ips"),
+    ("2.07A+ RC5", "MM_RC5.COM", "09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0", "12b9f581186abb647c90b37a0fef23ea55af0e83",
      "MM_LFN_RC5.ips"),
 ]
 fallos = []

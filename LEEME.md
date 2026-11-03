@@ -12,6 +12,8 @@ ahora:    Aleste 1 - E>   Fray 2 - Ver>   Golvellius 3>   King's Valle>   Metal 
 
 - **En la lista**, cada hueco enseña los 12 primeros caracteres del nombre largo (un `>` avisa de que sigue).
 - **En File info**, el campo *Name:* enseña el nombre largo entero (hasta 31 caracteres).
+- **En la vista de una columna** (`SHIFT+1`), la lista también enseña hasta 31 caracteres del nombre; para hacer
+  sitio no pinta los indicadores de atributos (File info los sigue dando).
 - Los ficheros sin nombre largo salen en 8.3, como siempre.
 
 ## Cómo aplicarlo
@@ -21,8 +23,8 @@ versión de referencia de cada una):
 
 | Versión | `MM.COM` | sha1 | Resultado |
 | --- | --- | --- | --- |
-| 2.07_A | 23.539 bytes | `db7316e2b8f17deb1c34df909e2b8da8133e1601` | 25.673 bytes, `479dade9e4d01e6477d9f07e29a0e7d5aa0e6911` |
-| 2.07A+ RC5 | 23.552 bytes | `09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0` | 25.673 bytes, `5b97f818fc2496069c4aeef4e9cfcf2688dfe2bd` |
+| 2.07_A | 23.539 bytes | `db7316e2b8f17deb1c34df909e2b8da8133e1601` | 25.726 bytes, `e69bb4e32c1e86b301fc9e9053d8d264dec1ae0e` |
+| 2.07A+ RC5 | 23.552 bytes | `09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0` | 25.726 bytes, `12b9f581186abb647c90b37a0fef23ea55af0e83` |
 
 La RC5 es la «MultiMente v2.07A+ RC5» de las descargas de MSX Resource Center. En su zip, el `MM.COM` en inglés es el
 de la raíz del `MMv2.07Aplus-RC5.zip` interior (no el de `Japanese\`). Usa el `MM.EXE` que viene con tu `MM.COM`; el
@@ -60,7 +62,7 @@ Después copia el resultado a la tarjeta como `MM.COM`, en la carpeta de Multi M
 - **Solo para ver.** Copiar, mover, renombrar y borrar siguen igual, con el 8.3; lo que MM copia o crea no lleva
   nombre largo. Ordenar ordena por el 8.3.
 - Solo ASCII: las letras latinas acentuadas salen sin acento y lo demás como `?`.
-- Necesita un segmento libre del mapper (un mapper de 256 KB o más) y sitio en la cima del TPA (≥ `D3EBh`;
+- Necesita un segmento libre del mapper (un mapper de 256 KB o más) y sitio en la cima del TPA (≥ `D411h`;
   Nextor 2.1.4 deja `D806h` y Nextor 3.0 `D706h`). Si falta uno de los dos, la lista se queda en 8.3 y solo File
   info enseña el nombre largo.
 - Entrar en una carpeta tarda algo más (unos 0,9 s con 200 ficheros de nombre largo en openMSX); mover el cursor
@@ -91,7 +93,7 @@ openMSX, las ROM del sistema y tus propios ficheros de MSX-DOS 2, que no van en 
 ## Sobre Multi Mente y este parche
 
 Multi Mente es obra de MOGU. Este repositorio es un complemento no oficial y no cuenta con el aval del autor.
-**No contiene nada del código de Multi Mente**: los `.ips` llevan solo los bytes nuevos (unos 2,4 KB cada uno) y las
+**No contiene nada del código de Multi Mente**: los `.ips` llevan solo los bytes nuevos (unos 2,5 KB cada uno) y las
 herramientas comprueban que cada byte del parche es distinto del original en su sitio. Hay que traer el propio
 `MM.COM`. Si el autor o quien tenga los derechos se opone, que lo diga y se retira.
 

@@ -25,10 +25,15 @@ GANCHOS = {
     0x3E88: (b"\x11\x35\xC9", 0xC3, "hookfib"),
     0x3E82: (b"\x2A\x8C\x3E", 0xC3, "pass"),
     0x33BF: (b"\xCD\x76\x13", 0xCD, "lstname"),
+    0x33D5: (b"\x32\x71\x13", 0xCD, "fldpos"),
+    0x3499: (b"\x21\x71\x13", 0xCD, "fatt"),
     0x34C3: (b"\xCD\xC4\x36", 0xCD, "prep"),
     0x34D5: (b"\xCD\xBA\x13", 0xCD, "tname"),
     0x3547: (b"\xCD\xC3\x35", 0xCD, "mydate"),
 }
+# 3B71h: LD DE,0174h -> LD DE,0180h: el ancho en pixeles de la barra del cursor en la vista de una columna
+# (la fila lleva ahora 12 pixeles mas: el nombre de 31, sin los atributos). Si no cabe la pagina 3, el arranque lo repone.
+ANCHO1 = (0x3B71, b"\x11\x74\x01", b"\x11\x80\x01")
 # 586Fh: LD (HL),FFh / LD A,(F24Fh) -> CALL takeseg / NOP / NOP
 GANCHO5 = (0x586F, b"\x36\xFF\x3A\x4F\xF2", "takeseg")
 # trozos de codigo muerto de MM: (inicio, simbolo del final, limite exclusivo)
@@ -96,6 +101,10 @@ def main():
         o = dir_ - BASE
         assert d[o:o + 3] == antes, "%04X: %s" % (dir_, d[o:o + 3].hex())
         d[o:o + 3] = bytes((op, s[sim] & 0xFF, s[sim] >> 8))
+    dir_, antes, nuevo = ANCHO1
+    o = dir_ - BASE
+    assert d[o:o + 3] == antes, "%04X: %s" % (dir_, d[o:o + 3].hex())
+    d[o:o + 3] = nuevo
     dir_, antes, sim = GANCHO5
     o = dir_ - BASE
     assert d[o:o + 5] == antes, "%04X: %s" % (dir_, d[o:o + 5].hex())

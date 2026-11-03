@@ -1,7 +1,8 @@
 ; MMLFN 2: nombres largos (VFAT) en Multi Mente 2.07_A
 ;
 ; - La lista de ficheros ensena en cada hueco los 12 primeros caracteres del nombre largo
-;   (con ">" en la posicion de la "\" de las carpetas si el nombre sigue).
+;   (con ">" en la posicion de la "\" de las carpetas si el nombre sigue). En la vista de una
+;   columna (SHIFT+1) el hueco es de 31 caracteres y no se pintan los atributos.
 ; - En File info, el campo "Name:" ensena el nombre largo entero (o 20 + "..." + 8).
 ;
 ; Ensamblar con pasmo (--hex) y aplicar con parchear.py. Va en estos sitios de MM.COM:
@@ -25,6 +26,8 @@
 ;   3E88h  LD DE,C935h   -> JP hookfib   (cada registro: la marca y donde esta la entrada)
 ;   3E82h  LD HL,(3E8Ch) -> JP pass      (fin del listado: pasada por el directorio)
 ;   33BFh  CALL 1376h    -> CALL lstname (la lista: el nombre de cada elemento)
+;   33D5h  LD (1371h),A  -> CALL fldpos  (una columna: el campo que sigue al nombre va mas a la derecha)
+;   3499h  LD HL,1371h   -> CALL fatt    (una columna: sin los atributos, para dar sitio al nombre)
 ;   34C3h  CALL 36C4h    -> CALL prep    (File info: borra la marca de "nombre ancho")
 ;   34D5h  CALL 13BAh    -> CALL tname   (File info: el nombre)
 ;   3547h  CALL 35C3h    -> CALL mydate  (la fecha; no se pinta si el nombre largo la tapa)
@@ -89,6 +92,8 @@ WIDEW           equ     31              ; ancho con la fecha tapada (hasta el bo
 HEADW           equ     20              ; recortado: 20 + "..." + 8
 TAILW           equ     8
 LSTW            equ     12              ; caracteres de cada hueco de la lista
+WIDEL           equ     31              ; lo mismo en la vista de una columna
+MODE            equ     56F4h           ; la vista: 9 = una columna, 81h = 2, A5h = 3, C9h = 5
 LFNSEQ          equ     20              ; 20 partes x 13 = 260 caracteres
 LFNSZ           equ     LFNSEQ*13+1
 FRAMESZ         equ     512+LFNSZ       ; sector + nombre, en la pila (File info sin tabla)
@@ -650,7 +655,7 @@ start:          ld      hl,(6)          ; cima del TPA: tiene que caber el codig
 st_no:          ld      a,STKMIN1
                 ld      (stkcp+1),a
                 ld      hl,orig
-                ld      b,6
+                ld      b,9
 st1:            ld      e,(hl)
                 inc     hl
                 ld      d,(hl)
@@ -668,6 +673,12 @@ orig:           dw      3E4Ah
                 db      2Ah,8Ch,3Eh     ; LD HL,(3E8Ch)
                 dw      33BFh
                 db      0CDh,76h,13h    ; CALL 1376h
+                dw      33D5h
+                db      32h,71h,13h     ; LD (1371h),A
+                dw      3499h
+                db      21h,71h,13h     ; LD HL,1371h
+                dw      3B71h
+                db      11h,74h,01h     ; LD DE,0174h (el ancho de la barra de una columna: parchear.py pone 0180h)
                 dw      34D5h
                 db      0CDh            ; CALL name
                 dw      name
@@ -1303,13 +1314,14 @@ lstname:        push    hl
                 jp      c,PRLST
                 jp      z,PRLST
                 ld      hl,ebuf+1
-                ld      b,LSTW
-                call    prn             ; C = los pintados
-                ld      a,LSTW
+                call    lstw            ; A = el ancho del hueco (DE es el registro: no se toca)
+                ld      b,a
+                call    prn             ; C = los pintados, HL = el siguiente
+                call    lstw
                 sub     c
                 ld      b,' '
-                jr      nz,ls0          ; acaba antes: espacios hasta la 12.a
-                ld      a,(ebuf+1+LSTW)
+                jr      nz,ls0          ; acaba antes: espacios hasta el final del hueco
+                ld      a,(hl)
                 or      a
                 jr      z,ls0           ; (A = 0: ningun espacio)
                 ld      b,'>'           ; sigue
@@ -1325,6 +1337,36 @@ ls0:            push    bc
 ls1:            call    PRCHR
                 pop     af              ; la vuelta a 33C2h
                 jp      LSTMARK
+
+; el ancho del hueco del nombre en la lista: 12, o 31 en la vista de una columna (MODE = 9)
+lstw:           ld      a,(MODE)
+                cp      9
+                ld      a,LSTW
+                ret     nz
+                ld      a,WIDEL
+                ret
+
+; ---------------------------------------------------------------- 33D5h
+; A = x de la columna + 27h = donde empieza el campo que sigue al nombre (el tamano). En la
+; vista de una columna el nombre ocupa 31 caracteres, no 12: el campo va 39h mas a la derecha.
+fldpos:         ld      c,a
+                ld      a,(MODE)
+                cp      9
+                ld      a,c
+                jr      nz,fp1
+                add     a,39h
+fp1:            ld      (POS),a
+                ret
+
+; ---------------------------------------------------------------- 3499h
+; Solo se llega aqui en la vista de una columna (MODE = 9: las demas vuelven antes): sigue lo
+; de MM, que pinta los atributos. Se omiten; para hacer sitio al nombre. File info los da.
+fatt:           ld      hl,POS          ; lo que habia
+                ld      a,(MODE)
+                cp      9
+                ret     nz
+                pop     af              ; sin los atributos: se vuelve al que llamo a 3462h
+                ret
 
 ; ---------------------------------------------------------------- 34D5h
 ; File info: HL = DE = registro. Lo de la tabla; si no lo sabe, lo de la version 1.

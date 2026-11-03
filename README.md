@@ -12,6 +12,8 @@ after:    Aleste 1 - E>   Fray 2 - Ver>   Golvellius 3>   King's Valle>   Metal 
 
 - **In the list**, each slot shows the first 12 characters of the long name (a `>` marks that it goes on).
 - **In File info**, the *Name:* field shows the whole long name (up to 31 characters).
+- **In the one-column view** (`SHIFT+1`), the list also shows up to 31 characters of the name; to make room it leaves
+  out the attribute flags (File info still shows them).
 - Files without a long name show their 8.3 name as always.
 
 ## Apply it
@@ -21,8 +23,8 @@ build of each one):
 
 | Version | `MM.COM` | sha1 | Result |
 | --- | --- | --- | --- |
-| 2.07_A | 23,539 bytes | `db7316e2b8f17deb1c34df909e2b8da8133e1601` | 25,673 bytes, `479dade9e4d01e6477d9f07e29a0e7d5aa0e6911` |
-| 2.07A+ RC5 | 23,552 bytes | `09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0` | 25,673 bytes, `5b97f818fc2496069c4aeef4e9cfcf2688dfe2bd` |
+| 2.07_A | 23,539 bytes | `db7316e2b8f17deb1c34df909e2b8da8133e1601` | 25,726 bytes, `e69bb4e32c1e86b301fc9e9053d8d264dec1ae0e` |
+| 2.07A+ RC5 | 23,552 bytes | `09c4a6b4f6fa4db19e94fa08fdcba0da2a3c29d0` | 25,726 bytes, `12b9f581186abb647c90b37a0fef23ea55af0e83` |
 
 The RC5 is the "MultiMente v2.07A+ RC5" build published on the MSX Resource Center downloads. In its zip, the English
 `MM.COM` is the one in the root of the inner `MMv2.07Aplus-RC5.zip` (not the one in `Japanese\`). Use the `MM.EXE`
@@ -61,7 +63,7 @@ Then copy the result to the card as `MM.COM`, in the Multi Mente folder (next to
 - **View only.** Copy, move, rename and delete work as before, on the 8.3 name; what MM copies or creates gets no
   long name. Sorting sorts by the 8.3 name.
 - ASCII only: accented Latin letters show without the accent, anything else as `?`.
-- Needs a free mapper segment (a 256 KB mapper or bigger) and room at the top of the TPA (≥ `D3EBh`; Nextor 2.1.4
+- Needs a free mapper segment (a 256 KB mapper or bigger) and room at the top of the TPA (≥ `D411h`; Nextor 2.1.4
   leaves `D806h`, Nextor 3.0 `D706h`). If either is missing, the list stays in 8.3 and only File info shows the
   long name.
 - Entering a folder takes a little longer (about +0.9 s for 200 files with long names in openMSX); moving the
@@ -92,7 +94,7 @@ openMSX, the system ROMs and your own MSX-DOS 2 files, none of which are in this
 ## About Multi Mente and this patch
 
 Multi Mente is the work of MOGU. This repository is an unofficial add-on and is not endorsed by the author. It
-contains **none of Multi Mente's code**: the `.ips` files hold only the new bytes (about 2.4 KB each) and the tools
+contains **none of Multi Mente's code**: the `.ips` files hold only the new bytes (about 2.5 KB each) and the tools
 check that every byte of the patch differs from the original at its place. You must supply your own `MM.COM`. If the
 author or any rights holder objects, tell us and it will be taken down.
 
